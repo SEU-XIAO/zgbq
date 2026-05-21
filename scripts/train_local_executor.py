@@ -92,6 +92,13 @@ def main() -> None:
 
     print(f"地图尺寸: {grid.shape[0]} x {grid.shape[1]}")
     print(f"训练设备: {device}")
+    print(
+        "训练配置: "
+        f"timeout={trainer.env_cfg.timeout_steps}, "
+        f"guide_stage1={trainer.curriculum_cfg.stage1_guide_start:.2f}->{trainer.curriculum_cfg.stage1_guide_end:.2f}, "
+        f"imitation_weight={trainer.agent.cfg.imitation_loss_weight:.2f}, "
+        f"eval_every={trainer.gate_cfg.eval_every_episodes}"
+    )
     save_dir = Path(args.save_dir)
     recent_success = deque(maxlen=100)
 

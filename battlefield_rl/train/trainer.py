@@ -245,7 +245,7 @@ class HierarchicalTrainer:
             start,
             goal,
             enemies=enemies,
-            waypoints=plan.waypoints,
+            waypoints=[goal],
             threat_scale=self._threat_scale(),
         )
 
@@ -256,18 +256,21 @@ class HierarchicalTrainer:
 
         for t in range(self.env_cfg.timeout_steps):
             mask = env.action_mask()
+            expert_action = env.heuristic_action(
+                distance_weight=self.curriculum_cfg.heuristic_distance_weight,
+                threat_weight=self.curriculum_cfg.heuristic_threat_weight,
+                revisit_weight=self.curriculum_cfg.heuristic_revisit_weight,
+            )
+            guided = False
             if train and use_guidance and random.random() < guide_prob:
-                action = env.heuristic_action(
-                    distance_weight=self.curriculum_cfg.heuristic_distance_weight,
-                    threat_weight=self.curriculum_cfg.heuristic_threat_weight,
-                    revisit_weight=self.curriculum_cfg.heuristic_revisit_weight,
-                )
+                action = expert_action
                 guided_actions += 1
+                guided = True
             else:
                 action = self.agent.act(obs, mask, epsilon_override=epsilon_override)
             step = env.step(action)
             next_obs = step.observation
-            next_mask = step.info["mask"]
+            next_mask = env.action_mask()
 
             if train:
                 tr = Transition(
@@ -278,6 +281,8 @@ class HierarchicalTrainer:
                     done=step.done,
                     mask=mask,
                     next_mask=next_mask,
+                    guided=guided,
+                    expert_action=expert_action if train else -1,
                 )
                 self.agent.push_transition(tr)
                 self.agent.learn_step()

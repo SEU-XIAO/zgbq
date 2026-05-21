@@ -31,7 +31,7 @@ class PlannerConfig:
 class AgentConfig:
     gamma: float = 0.99
     lr: float = 1e-4
-    epsilon_start: float = 1.0
+    epsilon_start: float = 0.4
     epsilon_end: float = 0.05
     epsilon_decay_steps: int = 150_000
     target_sync_steps: int = 2_000
@@ -40,6 +40,7 @@ class AgentConfig:
     per_alpha: float = 0.6
     per_beta_start: float = 0.4
     per_beta_steps: int = 250_000
+    imitation_loss_weight: float = 1.0
 
 
 @dataclass(frozen=True)
@@ -84,9 +85,9 @@ class CurriculumConfig:
     outer_band_extra: int = 5
 
     heuristic_guidance: bool = True
-    stage1_guide_start: float = 0.80
-    stage1_guide_end: float = 0.10
-    stage1_guide_decay_episodes: int = 1000
+    stage1_guide_start: float = 1.00
+    stage1_guide_end: float = 0.70
+    stage1_guide_decay_episodes: int = 3000
     stage2_guide_start: float = 0.50
     stage2_guide_end: float = 0.05
     stage2_guide_decay_episodes: int = 1200

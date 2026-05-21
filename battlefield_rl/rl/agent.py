@@ -102,9 +102,10 @@ class D3QNAgent:
         m = torch.from_numpy(np.stack([x.mask for x in samples])).float().to(self.device)
         nm = torch.from_numpy(np.stack([x.next_mask for x in samples])).float().to(self.device)
         w = torch.from_numpy(weights).float().to(self.device)
+        expert = torch.from_numpy(np.array([x.expert_action for x in samples], dtype=np.int64)).to(self.device)
 
-        q = self.online(s)
-        q = masked_q_values(q, m)
+        q_raw = self.online(s)
+        q = masked_q_values(q_raw, m)
         q_sa = q.gather(1, a.unsqueeze(1)).squeeze(1)
 
         with torch.no_grad():
@@ -115,7 +116,13 @@ class D3QNAgent:
             target = r + (1.0 - d) * self.cfg.gamma * next_q
 
         td = q_sa - target
-        loss = (w * F.smooth_l1_loss(q_sa, target, reduction="none")).mean()
+        td_loss = (w * F.smooth_l1_loss(q_sa, target, reduction="none")).mean()
+        expert_mask = expert >= 0
+        if expert_mask.any() and self.cfg.imitation_loss_weight > 0:
+            imitation_loss = F.cross_entropy(q[expert_mask], expert[expert_mask])
+        else:
+            imitation_loss = q_sa.new_tensor(0.0)
+        loss = td_loss + self.cfg.imitation_loss_weight * imitation_loss
 
         self.optim.zero_grad()
         loss.backward()

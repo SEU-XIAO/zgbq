@@ -16,6 +16,8 @@ class Transition:
     done: bool
     mask: np.ndarray
     next_mask: np.ndarray
+    guided: bool = False
+    expert_action: int = -1
 
 
 class PrioritizedReplayBuffer:

@@ -27,8 +27,11 @@ ACTIONS_8: List[Coord] = [
 class EnemySpec:
     row: int
     col: int
+    # 面朝
     facing_deg: float
+    # 张角
     fov_deg: float
+    # 视长
     max_range: int
 
 
@@ -37,10 +40,12 @@ class StepResult:
     observation: np.ndarray
     reward: float
     done: bool
+    # 调试信息
     info: Dict[str, object]
 
 
 def bresenham_line(r0: int, c0: int, r1: int, c1: int) -> List[Coord]:
+    # 画线算法
     points: List[Coord] = []
     dr = abs(r1 - r0)
     dc = abs(c1 - c0)
@@ -64,6 +69,7 @@ def bresenham_line(r0: int, c0: int, r1: int, c1: int) -> List[Coord]:
 
 
 def angle_deg(from_rc: Coord, to_rc: Coord) -> float:
+    # 计算从一个点 from_rc 指向另一个点 to_rc 的绝对角度
     dr = to_rc[0] - from_rc[0]
     dc = to_rc[1] - from_rc[1]
     rad = math.atan2(-dr, dc)
@@ -71,6 +77,7 @@ def angle_deg(from_rc: Coord, to_rc: Coord) -> float:
 
 
 def angle_diff(a: float, b: float) -> float:
+    # 计算两个角度 a 和 b 之间的最小夹角
     d = abs(a - b) % 360.0
     return min(d, 360.0 - d)
 
@@ -131,6 +138,38 @@ class TacticalBattlefieldEnv:
             if self.grid.is_passable(self.pos, nxt, 0):
                 mask[i] = 1.0
         return mask
+
+    def heuristic_action(
+        self,
+        distance_weight: float = 1.0,
+        threat_weight: float = 1.5,
+        revisit_weight: float = 0.2,
+    ) -> int:
+        mask = self.action_mask()
+        best_action = 0
+        best_score = -float("inf")
+        current_dist = self._euclidean(self.pos, self.goal)
+        half = self.window_radius
+
+        for i, (dr, dc) in enumerate(ACTIONS_8):
+            if mask[i] <= 0.5:
+                continue
+            nxt = (self.pos[0] + dr, self.pos[1] + dc)
+            progress = current_dist - self._euclidean(nxt, self.goal)
+
+            wr = nxt[0] - self.pos[0] + half
+            wc = nxt[1] - self.pos[1] + half
+            threat = 0.0
+            if 0 <= wr < self.cfg.window_size and 0 <= wc < self.cfg.window_size:
+                threat = float(self.current_threat_local[wr, wc])
+
+            revisit = float(self.visited[nxt[0], nxt[1]])
+            score = distance_weight * progress - threat_weight * threat - revisit_weight * revisit
+            if score > best_score:
+                best_score = score
+                best_action = i
+
+        return best_action
 
     def step(self, action: int) -> StepResult:
         self.steps += 1

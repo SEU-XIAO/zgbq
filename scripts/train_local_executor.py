@@ -85,6 +85,7 @@ def main() -> None:
     if args.resume:
         checkpoint = trainer.agent.load_checkpoint(args.resume)
         trainer.stage = int(checkpoint.get("stage", trainer.stage))
+        trainer.stage_episode = int(checkpoint.get("stage_episode", trainer.stage_episode))
         start_episode = int(checkpoint.get("episode", 0)) + 1
         best_success = float(checkpoint.get("best_success", best_success))
         print(f"已加载 checkpoint: {args.resume}")
@@ -108,12 +109,15 @@ def main() -> None:
                 f"gate_success={stats.rolling_success_rate:.3f} "
                 f"gate_timeout={stats.rolling_timeout_rate:.3f} "
                 f"gate_eff={stats.rolling_path_efficiency:.3f} "
+                f"guide_prob={stats.guide_prob:.3f} "
+                f"guided={stats.guided_actions} "
                 f"success100={rolling_success:.3f}"
             )
 
         extra = {
             "episode": ep,
             "stage": trainer.stage,
+            "stage_episode": trainer.stage_episode,
             "best_success": max(best_success, rolling_success),
         }
         if args.save_every > 0 and ep % args.save_every == 0:

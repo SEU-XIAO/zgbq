@@ -9,16 +9,16 @@ class EnvConfig:
 
     step_penalty: float = -0.01
     progress_reward_scale: float = 0.3
-    exposure_penalty_scale: float = -1.0
-    visible_event_penalty: float = -0.2
-    revisit_penalty_scale: float = -0.02
+    exposure_penalty_scale: float = 0
+    visible_event_penalty: float = 0
+    revisit_penalty_scale: float = 0
 
     waypoint_reward: float = 1.0
-    goal_reward: float = 10.0
-    timeout_penalty: float = -5.0
+    goal_reward: float = 50.0
+    timeout_penalty: float = -60.0
 
-    timeout_steps: int = 220
-    no_progress_limit: int = 50
+    timeout_steps: int = 50
+    no_progress_limit: int = 10
 
 
 @dataclass(frozen=True)
@@ -79,6 +79,21 @@ class CurriculumConfig:
     enemy_range_max: int = 18
 
     outer_band_extra: int = 5
+
+    heuristic_guidance: bool = True
+    stage1_guide_start: float = 0.80
+    stage1_guide_end: float = 0.10
+    stage1_guide_decay_episodes: int = 1000
+    stage2_guide_start: float = 0.50
+    stage2_guide_end: float = 0.05
+    stage2_guide_decay_episodes: int = 1200
+    stage3_guide_start: float = 0.20
+    stage3_guide_end: float = 0.00
+    stage3_guide_decay_episodes: int = 1500
+
+    heuristic_distance_weight: float = 1.0
+    heuristic_threat_weight: float = 1.5
+    heuristic_revisit_weight: float = 0.2
 
 
 @dataclass(frozen=True)

@@ -33,6 +33,8 @@ class EpisodeStats:
     rolling_success_rate: float
     rolling_timeout_rate: float
     rolling_path_efficiency: float
+    guide_prob: float
+    guided_actions: int
 
 
 class HierarchicalTrainer:
@@ -59,7 +61,27 @@ class HierarchicalTrainer:
         )
 
         self.stage = 1
+        self.stage_episode = 0
         self.gate = StageGate(window_size=gate_cfg.window_size)
+
+    def guide_probability(self) -> float:
+        if not self.curriculum_cfg.heuristic_guidance:
+            return 0.0
+        if self.stage == 1:
+            start = self.curriculum_cfg.stage1_guide_start
+            end = self.curriculum_cfg.stage1_guide_end
+            decay = self.curriculum_cfg.stage1_guide_decay_episodes
+        elif self.stage == 2:
+            start = self.curriculum_cfg.stage2_guide_start
+            end = self.curriculum_cfg.stage2_guide_end
+            decay = self.curriculum_cfg.stage2_guide_decay_episodes
+        else:
+            start = self.curriculum_cfg.stage3_guide_start
+            end = self.curriculum_cfg.stage3_guide_end
+            decay = self.curriculum_cfg.stage3_guide_decay_episodes
+
+        ratio = min(1.0, self.stage_episode / max(1, decay))
+        return start + (end - start) * ratio
 
     def _threat_scale(self) -> float:
         if self.stage == 1:
@@ -160,6 +182,7 @@ class HierarchicalTrainer:
             and metrics.path_efficiency <= max_eff
         ):
             self.stage += 1
+            self.stage_episode = 0
             self.gate = StageGate(window_size=self.gate_cfg.window_size)
 
     def run_episode(self, episode_idx: int, start: Coord, goal: Coord, train: bool = True) -> EpisodeStats:
@@ -182,7 +205,7 @@ class HierarchicalTrainer:
             allow_diagonal=self.planner_cfg.allow_diagonal,
         )
         if not plan.path:
-            return EpisodeStats(episode_idx, self.stage, 0, -100.0, False, True, 999.0, 0.0, 1.0, 999.0)
+            return EpisodeStats(episode_idx, self.stage, 0, -100.0, False, True, 999.0, 0.0, 1.0, 999.0, 0.0, 0)
 
         env = TacticalBattlefieldEnv(grid, self.env_cfg)
         obs = env.reset(
@@ -195,10 +218,20 @@ class HierarchicalTrainer:
 
         total_reward = 0.0
         timeout = False
+        guide_prob = self.guide_probability()
+        guided_actions = 0
 
         for t in range(self.env_cfg.timeout_steps):
             mask = env.action_mask()
-            action = self.agent.act(obs, mask)
+            if train and random.random() < guide_prob:
+                action = env.heuristic_action(
+                    distance_weight=self.curriculum_cfg.heuristic_distance_weight,
+                    threat_weight=self.curriculum_cfg.heuristic_threat_weight,
+                    revisit_weight=self.curriculum_cfg.heuristic_revisit_weight,
+                )
+                guided_actions += 1
+            else:
+                action = self.agent.act(obs, mask)
             step = env.step(action)
             next_obs = step.observation
             next_mask = step.info["mask"]
@@ -235,6 +268,7 @@ class HierarchicalTrainer:
 
         self.gate.update(reached_goal=reached_goal, timeout=timeout, path_efficiency=path_eff)
         metrics = self.gate.summary()
+        self.stage_episode += 1
         self._maybe_advance_stage()
 
         return EpisodeStats(
@@ -248,4 +282,6 @@ class HierarchicalTrainer:
             rolling_success_rate=metrics.success_rate,
             rolling_timeout_rate=metrics.timeout_rate,
             rolling_path_efficiency=metrics.path_efficiency,
+            guide_prob=guide_prob,
+            guided_actions=guided_actions,
         )

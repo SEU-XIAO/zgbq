@@ -19,6 +19,7 @@ class TrainingScene:
     start: Coord
     goal: Coord
     enemies: List[object]
+    # 记录这个场景是如何生成的
     source: str
     enemy_case: str
 
@@ -49,6 +50,7 @@ class LocalSceneSampler:
     def _sample_grid(self) -> Tuple[BattlefieldMap, str]:
         if random.random() < self.cfg.procedural_ratio:
             return self._procedural_grid(), "procedural"
+        # 有1-procedural_ratio的概率成为一个裁剪的场景
         cropped = self._crop_real_grid()
         if cropped is not None:
             return cropped, "real_crop"

@@ -105,6 +105,7 @@ class LocalSceneSampler:
         for _ in range(20):
             r = random.randint(0, rows - size)
             c = random.randint(0, cols - size)
+            # numpy的从一个大numpy中深拷贝出一个小numpy出来
             types = self.base_grid.types[r : r + size, c : c + size].copy()
             center = self.scene_half
             if int(types[center, center]) in (1, 2):
@@ -115,6 +116,7 @@ class LocalSceneSampler:
 
     def _sample_goal(self, grid: BattlefieldMap, start: Coord) -> Optional[Coord]:
         candidates: List[Coord] = []
+        # 点的合法坐标范围
         r_min = max(0, start[0] - self.view_half)
         r_max = min(self.cfg.scene_size - 1, start[0] + self.view_half)
         c_min = max(0, start[1] - self.view_half)
@@ -133,6 +135,7 @@ class LocalSceneSampler:
         return None
 
     def _reachable(self, grid: BattlefieldMap, start: Coord, goal: Coord) -> bool:
+        # BFS检查可达性
         q = deque([start])
         seen = {start}
         while q:
@@ -153,6 +156,7 @@ class LocalSceneSampler:
         return False
 
     def _sample_enemies(self, stage: int, start: Coord) -> Tuple[List[object], str]:
+        # 敌人有3种情况，没有  外层  内层
         case = self._sample_enemy_case(stage)
         if case == "none":
             return [], case
@@ -161,6 +165,7 @@ class LocalSceneSampler:
         return [self._sample_outer35_enemy(start)], case
 
     def _sample_enemy_case(self, stage: int) -> str:
+        # 用来控制课程难度
         if stage <= 1:
             return "none"
         if stage == 2:
@@ -197,6 +202,7 @@ class LocalSceneSampler:
         return EnemySpec(
             row=rc[0],
             col=rc[1],
+            # 敌人不一定正看着agent
             facing_deg=(facing + jitter) % 360.0,
             fov_deg=self.cfg.enemy_fov_deg,
             max_range=self.cfg.enemy_range,

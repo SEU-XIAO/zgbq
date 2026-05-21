@@ -45,6 +45,9 @@ class AgentConfig:
 @dataclass(frozen=True)
 class CurriculumThreshold:
     window_size: int = 200
+    eval_every_episodes: int = 50
+    eval_episodes: int = 50
+    eval_epsilon: float = 0.02
     stage1_success_rate: float = 0.85
     stage1_timeout_rate: float = 0.15
     stage1_path_efficiency: float = 1.80

@@ -42,13 +42,14 @@ class D3QNAgent:
         return self.cfg.per_beta_start + t * (1.0 - self.cfg.per_beta_start)
 
     @torch.no_grad()
-    def act(self, obs: np.ndarray, mask: np.ndarray) -> int:
+    def act(self, obs: np.ndarray, mask: np.ndarray, epsilon_override: float | None = None) -> int:
         self.online.eval()
         x = torch.from_numpy(obs).unsqueeze(0).float().to(self.device)
         m = torch.from_numpy(mask).unsqueeze(0).float().to(self.device)
         q = self.online(x)
         q_mask = masked_q_values(q, m)
-        action = epsilon_greedy(q_mask[0], m[0], self.epsilon())
+        epsilon = self.epsilon() if epsilon_override is None else epsilon_override
+        action = epsilon_greedy(q_mask[0], m[0], epsilon)
         return action
 
     def push_transition(self, tr: Transition) -> None:

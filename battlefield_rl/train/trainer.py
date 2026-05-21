@@ -35,6 +35,9 @@ class EpisodeStats:
     rolling_path_efficiency: float
     guide_prob: float
     guided_actions: int
+    eval_ran: bool = False
+    source: str = ""
+    enemy_case: str = ""
 
 
 class HierarchicalTrainer:
@@ -62,6 +65,7 @@ class HierarchicalTrainer:
 
         self.stage = 1
         self.stage_episode = 0
+        self.last_eval_metrics = None
         self.gate = StageGate(window_size=gate_cfg.window_size)
 
     def guide_probability(self) -> float:
@@ -185,13 +189,26 @@ class HierarchicalTrainer:
             self.stage_episode = 0
             self.gate = StageGate(window_size=self.gate_cfg.window_size)
 
-    def run_episode(self, episode_idx: int, start: Coord, goal: Coord, train: bool = True) -> EpisodeStats:
+    def _run_single_episode(
+        self,
+        episode_idx: int,
+        start: Coord,
+        goal: Coord,
+        train: bool,
+        use_guidance: bool,
+        epsilon_override: float | None = None,
+        update_stage_gate: bool = False,
+    ) -> EpisodeStats:
+        source = "fullmap"
+        enemy_case = "sampled"
         if self.scene_sampler is not None:
             scene = self.scene_sampler.sample(stage=self.stage)
             grid = scene.grid
             start = scene.start
             goal = scene.goal
             enemies = scene.enemies
+            source = scene.source
+            enemy_case = scene.enemy_case
         else:
             grid = self.grid
             enemies = self._sample_enemies(center=start)
@@ -205,7 +222,23 @@ class HierarchicalTrainer:
             allow_diagonal=self.planner_cfg.allow_diagonal,
         )
         if not plan.path:
-            return EpisodeStats(episode_idx, self.stage, 0, -100.0, False, True, 999.0, 0.0, 1.0, 999.0, 0.0, 0)
+            return EpisodeStats(
+                episode_idx,
+                self.stage,
+                0,
+                -100.0,
+                False,
+                True,
+                999.0,
+                0.0,
+                1.0,
+                999.0,
+                0.0,
+                0,
+                False,
+                source,
+                enemy_case,
+            )
 
         env = TacticalBattlefieldEnv(grid, self.env_cfg)
         obs = env.reset(
@@ -223,7 +256,7 @@ class HierarchicalTrainer:
 
         for t in range(self.env_cfg.timeout_steps):
             mask = env.action_mask()
-            if train and random.random() < guide_prob:
+            if train and use_guidance and random.random() < guide_prob:
                 action = env.heuristic_action(
                     distance_weight=self.curriculum_cfg.heuristic_distance_weight,
                     threat_weight=self.curriculum_cfg.heuristic_threat_weight,
@@ -231,7 +264,7 @@ class HierarchicalTrainer:
                 )
                 guided_actions += 1
             else:
-                action = self.agent.act(obs, mask)
+                action = self.agent.act(obs, mask, epsilon_override=epsilon_override)
             step = env.step(action)
             next_obs = step.observation
             next_mask = step.info["mask"]
@@ -264,12 +297,17 @@ class HierarchicalTrainer:
 
         reached_goal = env.pos == goal
         steps = t + 1
-        path_eff = max(1.0, steps / max(1, len(plan.path)))
+        shortest_steps = max(1, len(plan.path) - 1)
+        path_eff = max(1.0, steps / shortest_steps)
 
-        self.gate.update(reached_goal=reached_goal, timeout=timeout, path_efficiency=path_eff)
-        metrics = self.gate.summary()
-        self.stage_episode += 1
-        self._maybe_advance_stage()
+        if train:
+            self.stage_episode += 1
+
+        if update_stage_gate:
+            self.gate.update(reached_goal=reached_goal, timeout=timeout, path_efficiency=path_eff)
+            metrics = self.gate.summary()
+        else:
+            metrics = self.gate.summary()
 
         return EpisodeStats(
             episode=episode_idx,
@@ -284,4 +322,41 @@ class HierarchicalTrainer:
             rolling_path_efficiency=metrics.path_efficiency,
             guide_prob=guide_prob,
             guided_actions=guided_actions,
+            eval_ran=False,
+            source=source,
+            enemy_case=enemy_case,
         )
+
+    def run_episode(self, episode_idx: int, start: Coord, goal: Coord, train: bool = True) -> EpisodeStats:
+        stats = self._run_single_episode(
+            episode_idx=episode_idx,
+            start=start,
+            goal=goal,
+            train=train,
+            use_guidance=True,
+            epsilon_override=None,
+            update_stage_gate=False,
+        )
+        if train and episode_idx % self.gate_cfg.eval_every_episodes == 0:
+            self.evaluate_for_stage_gate(start, goal)
+            metrics = self.gate.summary()
+            stats.stage = self.stage
+            stats.rolling_success_rate = metrics.success_rate
+            stats.rolling_timeout_rate = metrics.timeout_rate
+            stats.rolling_path_efficiency = metrics.path_efficiency
+            stats.eval_ran = True
+        return stats
+
+    def evaluate_for_stage_gate(self, start: Coord, goal: Coord) -> None:
+        for _ in range(self.gate_cfg.eval_episodes):
+            self._run_single_episode(
+                episode_idx=0,
+                start=start,
+                goal=goal,
+                train=False,
+                use_guidance=False,
+                epsilon_override=self.gate_cfg.eval_epsilon,
+                update_stage_gate=True,
+            )
+        self.last_eval_metrics = self.gate.summary()
+        self._maybe_advance_stage()

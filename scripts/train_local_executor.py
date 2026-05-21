@@ -100,17 +100,19 @@ def main() -> None:
         stats = trainer.run_episode(ep, start, goal, train=True)
         recent_success.append(1.0 if stats.reached_goal else 0.0)
         rolling_success = sum(recent_success) / len(recent_success)
+        eval_success = stats.rolling_success_rate
 
-        if ep % 10 == 0 or ep == 1:
+        if ep % 10 == 0 or ep == 1 or stats.eval_ran:
             print(
                 f"[EP {stats.episode}] stage={stats.stage} steps={stats.steps} "
                 f"reward={stats.reward:.3f} goal={stats.reached_goal} timeout={stats.timeout} "
                 f"path_eff={stats.path_efficiency:.3f} "
-                f"gate_success={stats.rolling_success_rate:.3f} "
-                f"gate_timeout={stats.rolling_timeout_rate:.3f} "
-                f"gate_eff={stats.rolling_path_efficiency:.3f} "
+                f"eval_success={stats.rolling_success_rate:.3f} "
+                f"eval_timeout={stats.rolling_timeout_rate:.3f} "
+                f"eval_eff={stats.rolling_path_efficiency:.3f} "
                 f"guide_prob={stats.guide_prob:.3f} "
                 f"guided={stats.guided_actions} "
+                f"eval={stats.eval_ran} "
                 f"success100={rolling_success:.3f}"
             )
 
@@ -118,14 +120,14 @@ def main() -> None:
             "episode": ep,
             "stage": trainer.stage,
             "stage_episode": trainer.stage_episode,
-            "best_success": max(best_success, rolling_success),
+            "best_success": max(best_success, eval_success),
         }
         if args.save_every > 0 and ep % args.save_every == 0:
             trainer.agent.save_checkpoint(save_dir / "latest.pt", extra=extra)
             trainer.agent.save_checkpoint(save_dir / f"episode_{ep}.pt", extra=extra)
 
-        if rolling_success > best_success and len(recent_success) == recent_success.maxlen:
-            best_success = rolling_success
+        if stats.eval_ran and eval_success > best_success:
+            best_success = eval_success
             extra["best_success"] = best_success
             trainer.agent.save_checkpoint(save_dir / "best.pt", extra=extra)
 

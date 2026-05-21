@@ -1,0 +1,48 @@
+# Python caches
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Training outputs
+checkpoints/
+checkpoints_*/
+runs/
+logs/
+wandb/
+tensorboard/
+
+# Model artifacts
+*.pt
+*.pth
+*.ckpt
+*.onnx
+
+# Local generated data
+artifacts/
+outputs/
+tmp/
+temp/
+
+# IDE and OS noise
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Local environment files
+.env
+.env.*
+
+# NOTE:
+# Do not ignore *.txt globally.
+# Some text files are source assets and should remain trackable.

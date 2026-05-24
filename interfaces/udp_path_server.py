@@ -156,7 +156,7 @@ def adapt_maneuver_path_request(
     default_fov_deg: float = DEFAULT_FOV_DEG,
     default_enemy_range: int = DEFAULT_ENEMY_RANGE,
 ) -> dict[str, Any]:
-    return {
+    request = {
         "task": "path_planning",
         "map": str(payload.get("map", map_path)),
         "start": _coord_xy_to_row_col(payload.get("startPos"), "startPos"),
@@ -170,6 +170,10 @@ def adapt_maneuver_path_request(
             for item in payload.get("enemyInfo", [])
         ],
     }
+    model_path = payload.get("model_path", payload.get("modelPath", payload.get("model")))
+    if model_path:
+        request["model_path"] = str(model_path)
+    return request
 
 
 def adapt_site_selection_request(payload: dict[str, Any], *, map_path: str) -> dict[str, Any]:

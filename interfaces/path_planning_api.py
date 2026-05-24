@@ -57,7 +57,15 @@ def handle_path_planning(payload: dict[str, Any]) -> dict[str, Any]:
     goal = _as_coord(_required(payload, "goal"), "goal")
     enemies = [_as_enemy(item) for item in payload.get("enemies", [])]
 
-    result = plan_and_execute(map_path=map_path, start=start, goal=goal, enemies=enemies)
+    model_path = payload.get("model_path", payload.get("model"))
+
+    result = plan_and_execute(
+        map_path=map_path,
+        start=start,
+        goal=goal,
+        enemies=enemies,
+        model_path=str(model_path) if model_path else None,
+    )
     output_dir = payload.get("output_dir")
     if output_dir:
         write_result_if_requested(result, str(output_dir), start, goal)

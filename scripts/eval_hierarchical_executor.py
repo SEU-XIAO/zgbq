@@ -277,14 +277,29 @@ def repeat_stats(path: Sequence[Coord], limit: int = 10) -> Dict[str, object]:
     }
 
 
-def plan_and_execute(map_path: str, start: Coord, goal: Coord, enemies: Sequence[EnemySpec]) -> Dict[str, object]:
+def resolve_model_path(model_path: str | Path | None = None) -> Path:
+    if model_path is None or str(model_path).strip() == "":
+        return PROJECT_ROOT / DEFAULT_MODEL_PATH
+    path = Path(model_path)
+    if path.is_absolute() or path.exists():
+        return path
+    return PROJECT_ROOT / path
+
+
+def plan_and_execute(
+    map_path: str,
+    start: Coord,
+    goal: Coord,
+    enemies: Sequence[EnemySpec],
+    model_path: str | Path | None = None,
+) -> Dict[str, object]:
     grid = load_txt_map(map_path)
     validate_endpoint(grid, start, "start")
     validate_endpoint(grid, goal, "goal")
 
-    model_path = PROJECT_ROOT / DEFAULT_MODEL_PATH
-    if not model_path.exists():
-        raise FileNotFoundError(f"model not found: {model_path}")
+    resolved_model_path = resolve_model_path(model_path)
+    if not resolved_model_path.exists():
+        raise FileNotFoundError(f"model not found: {resolved_model_path}")
 
     env_cfg = EnvConfig()
     planner_cfg = PlannerConfig()
@@ -308,7 +323,7 @@ def plan_and_execute(map_path: str, start: Coord, goal: Coord, enemies: Sequence
             "path": [coord_to_list(start)],
         }
 
-    model = load_policy(model_path, device)
+    model = load_policy(resolved_model_path, device)
     pos = start
     full_trace: List[Coord] = [start]
     plans_used = [initial_plan.planner]
@@ -490,7 +505,7 @@ def plan_and_execute(map_path: str, start: Coord, goal: Coord, enemies: Sequence
         "goal": coord_to_list(goal),
         "final_pos": coord_to_list(pos),
         "map": str(Path(map_path)),
-        "model": str(model_path),
+        "model": str(resolved_model_path),
         "device": str(device),
         "enemies": [enemy_to_dict(enemy) for enemy in enemies],
         "path": coords_to_list(full_trace),
@@ -524,6 +539,7 @@ def plan_and_execute(map_path: str, start: Coord, goal: Coord, enemies: Sequence
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Return battlefield path planning result as JSON")
     parser.add_argument("--map", required=True, help="txt map path")
+    parser.add_argument("--model", default=None, help="model checkpoint path; defaults to episode_8000.pt")
     parser.add_argument("--start", required=True, help="row,col")
     parser.add_argument("--goal", required=True, help="row,col")
     parser.add_argument("--enemy", action="append", default=[], help="row,col,facing_deg,fov_deg,range")
@@ -556,6 +572,7 @@ def main() -> None:
             start=start,
             goal=goal,
             enemies=[parse_enemy(enemy) for enemy in args.enemy],
+            model_path=args.model,
         )
         write_result_if_requested(result, args.output_dir, start, goal)
     except Exception as exc:

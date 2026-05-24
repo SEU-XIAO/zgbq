@@ -84,6 +84,7 @@ def main() -> None:
     best_success = -1.0
     if args.resume:
         checkpoint = trainer.agent.load_checkpoint(args.resume)
+        trainer.agent.global_step = 0
         trainer.stage = int(checkpoint.get("stage", trainer.stage))
         trainer.stage_episode = int(checkpoint.get("stage_episode", trainer.stage_episode))
         start_episode = int(checkpoint.get("episode", 0)) + 1

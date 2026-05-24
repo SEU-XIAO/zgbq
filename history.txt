@@ -1,4 +1,4 @@
-﻿from dataclasses import dataclass
+from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
@@ -7,7 +7,7 @@ class EnvConfig:
     max_height_diff: int = 0
     los_height_margin: float = 0.0
 
-    step_penalty: float = -0.1
+    step_penalty: float = -0.01
     progress_reward_scale: float = 0.3
     exposure_penalty_scale: float = 0
     visible_event_penalty: float = 0
@@ -119,3 +119,5 @@ class TrainingSceneConfig:
     goal_min_distance: int = 8
     goal_max_distance: int = 22
     max_sample_attempts: int = 100
+
+目前打转还是比较多，讲step_panalty=-0.1试一下

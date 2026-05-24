@@ -1,0 +1,18 @@
+{
+  
+  "task": "path_planning",
+  
+  "map": "MyPath_Data417.txt",
+  "start": [20, 20],
+  "goal": [220, 220],
+  "enemies": [
+    {
+      "row": 80,
+      "col": 80,
+      "facing_deg": 225,
+      "fov_deg": 90,
+      "range": 20
+    }
+  ],
+  "output_dir": "outputs"
+}

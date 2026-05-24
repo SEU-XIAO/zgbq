@@ -11,6 +11,7 @@ from battlefield_rl.map import BattlefieldMap
 
 Coord = Tuple[int, int]
 
+# 8个方向动作
 ACTIONS_8: List[Coord] = [
     (-1, 0),
     (1, 0),
@@ -25,6 +26,7 @@ ACTIONS_8: List[Coord] = [
 
 @dataclass
 class EnemySpec:
+    # 行列
     row: int
     col: int
     # 面朝
@@ -45,7 +47,7 @@ class StepResult:
 
 
 def bresenham_line(r0: int, c0: int, r1: int, c1: int) -> List[Coord]:
-    # 画线算法
+    # 画线算法，找到最接近一条两点间直线的格子序列
     points: List[Coord] = []
     dr = abs(r1 - r0)
     dc = abs(c1 - c0)
@@ -84,26 +86,26 @@ def angle_diff(a: float, b: float) -> float:
 
 class TacticalBattlefieldEnv:
     def __init__(self, grid: BattlefieldMap, config: EnvConfig):
-        self.grid = grid
-        self.cfg = config
-        self.window_radius = config.window_size // 2
+        self.grid = grid # 传入战场对象
+        self.cfg = config # 传进环境配置参数
+        self.window_radius = config.window_size // 2 # 计算局部视野的半径，这里是正方形边长的一半
 
-        self.start: Coord = (0, 0)
-        self.goal: Coord = (0, 0)
-        self.pos: Coord = (0, 0)
-        self.enemies: List[EnemySpec] = []
-        self.waypoints: List[Coord] = []
-        self.waypoint_idx: int = 0
+        self.start: Coord = (0, 0) # 智能体视野中看到的起点
+        self.goal: Coord = (0, 0) # 智能体视野中看到的终点
+        self.pos: Coord = (0, 0) # 智能体所处的实时位置
+        self.enemies: List[EnemySpec] = [] # 传入的敌人数组
+        self.waypoints: List[Coord] = [] # 路标列表
+        self.waypoint_idx: int = 0 # 当前阶段路标索引
 
-        self.steps = 0
-        self.no_progress_steps = 0
-        self.prev_goal_dist = float("inf")
+        self.steps = 0 # 总步数计数器
+        self.no_progress_steps = 0 # 无进展（原地打转/卡住）的步数计数器。
+        self.prev_goal_dist = float("inf") # 智能体在上一步距离目标的距离，初始值设为正无穷
 
-        self.visited = np.zeros(self.grid.shape, dtype=np.float32)
-        ws = self.cfg.window_size
-        self.current_threat_local = np.zeros((ws, ws), dtype=np.float32)
-        self.current_visible_local = np.zeros((ws, ws), dtype=np.float32)
-        self.threat_scale = 1.0
+        self.visited = np.zeros(self.grid.shape, dtype=np.float32) # 足迹地图
+        ws = self.cfg.window_size # 局部视野正方形边长
+        self.current_threat_local = np.zeros((ws, ws), dtype=np.float32) # 当前局部视野内的敌人威胁程度（比如离敌人越近，格子里的数值越高）。
+        self.current_visible_local = np.zeros((ws, ws), dtype=np.float32) # 标记可见性
+        self.threat_scale = 1.0 # 威胁程度的缩放系数
 
     def reset(
         self,
@@ -117,20 +119,21 @@ class TacticalBattlefieldEnv:
         self.goal = goal
         self.pos = start
         self.enemies = list(enemies)
-        self.waypoints = list(waypoints) if waypoints else [goal]
-        self.waypoint_idx = 0
+        self.waypoints = list(waypoints) if waypoints else [goal] # 若为空列表，goal作为唯一路标
+        self.waypoint_idx = 0 # 从第一个路标开始走。
         self.steps = 0
         self.no_progress_steps = 0
-        self.prev_goal_dist = self._euclidean(self.pos, self.goal)
+        self.prev_goal_dist = self._euclidean(self.pos, self.goal) # 计算并记录初始状态下，当前位置到终点的欧几里得距离（直线距离）。
         self.visited.fill(0.0)
         self.visited[self.pos[0], self.pos[1]] = 1.0
         self.threat_scale = threat_scale
-        self._update_threat_cache()
-        return self.build_observation()
+        self._update_threat_cache() # 只有第一次需要计算敌人威胁的热力图，后续读缓存复用就可以了
+        return self.build_observation() # 生成并返回第一帧视野。
 
     def current_waypoint(self) -> Coord:
         return self.waypoints[min(self.waypoint_idx, len(self.waypoints) - 1)]
 
+    # 掩码为1是可通行
     def action_mask(self) -> np.ndarray:
         mask = np.zeros(len(ACTIONS_8), dtype=np.float32)
         for i, (dr, dc) in enumerate(ACTIONS_8):
@@ -141,22 +144,22 @@ class TacticalBattlefieldEnv:
 
     def heuristic_action(
         self,
-        distance_weight: float = 1.0,
-        threat_weight: float = 1.5,
-        revisit_weight: float = 0.2,
-    ) -> int:
+        distance_weight: float = 1.0, # 渴望前进的程度。权重越高，越倾向于抄近路直奔终点。
+        threat_weight: float = 1.5, # 怕死的程度。由于设为了 1.5（最高），说明该算法宁可绕远路，也绝对要避开敌人。
+        revisit_weight: float = 0.2, # 讨厌重复的程度。防止智能体在两个格子之间来回鬼畜打转。
+    ) -> int: # 返回得分最高的动作索引 best_action（0 ~ 7 的整数）
         mask = self.action_mask()
-        best_action = 0
-        best_score = -float("inf")
+        best_action = 0 # 初始化最优动作为 0
+        best_score = -float("inf") # 后面计算出的任何有效得分都能覆盖它
         current_dist = self._euclidean(self.pos, self.goal)
         half = self.window_radius
 
         for i, (dr, dc) in enumerate(ACTIONS_8):
-            if mask[i] <= 0.5:
+            if mask[i] <= 0.5: # 碰壁过滤
                 continue
             nxt = (self.pos[0] + dr, self.pos[1] + dc)
             progress = current_dist - self._euclidean(nxt, self.goal)
-
+            # 坐标转换。将全局地图上的坐标 nxt 转换映射到以自身为中心的局部视野矩阵（current_threat_local）中的行列索引 (wr, wc)。
             wr = nxt[0] - self.pos[0] + half
             wc = nxt[1] - self.pos[1] + half
             threat = 0.0
@@ -164,38 +167,44 @@ class TacticalBattlefieldEnv:
                 threat = float(self.current_threat_local[wr, wc])
 
             revisit = float(self.visited[nxt[0], nxt[1]])
+            # 进行打分
             score = distance_weight * progress - threat_weight * threat - revisit_weight * revisit
             if score > best_score:
                 best_score = score
                 best_action = i
-
+        # 返回最高分的启发式动作索引
         return best_action
 
-    def step(self, action: int) -> StepResult:
+    def step(self, action: int) -> StepResult: # 接受agent的action并返回步进结果
         self.steps += 1
         mask = self.action_mask()
         valid = mask[action] > 0.5
 
         old_pos = self.pos
-        if valid:
+        if valid: # 如果动作不合法（撞墙），则保持原坐标不动（原地踏步）。
             dr, dc = ACTIONS_8[action]
             self.pos = (self.pos[0] + dr, self.pos[1] + dc)
 
-        self.visited *= 0.97
+        self.visited *= 0.97 # 足迹害怕衰减机制
         self.visited[self.pos[0], self.pos[1]] = 1.0
 
         self._update_threat_cache()
 
+        # 时间惩罚
         reward = self.cfg.step_penalty
+        # 推进奖励
         reward += self._progress_reward(old_pos, self.pos)
 
+        # 处于敌人威胁下的惩罚
         half = self.window_radius
         threat = float(self.current_threat_local[half, half])
         reward += self.cfg.exposure_penalty_scale * self.threat_scale * threat
 
+        # 处于敌人可见性格子下的惩罚
         visible_event = float(self.current_visible_local[half, half])
         reward += self.cfg.visible_event_penalty * self.threat_scale * visible_event
 
+        # 惩罚重复访问
         revisit = float(self.visited[self.pos[0], self.pos[1]])
         reward += self.cfg.revisit_penalty_scale * revisit
 

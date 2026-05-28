@@ -1,18 +1,27 @@
 {
-  
   "task": "path_planning",
-  
   "map": "MyPath_Data417.txt",
+  "model": "episode_8000.pt",
+  "model_path": "episode_8000.pt",
   "start": [20, 20],
-  "goal": [220, 220],
+  "goal": [73, 97],
   "enemies": [
     {
-      "row": 80,
-      "col": 80,
+      "row": 50,
+      "col": 50,
       "facing_deg": 225,
       "fov_deg": 90,
       "range": 20
+    },
+    {
+      "row": 60,
+      "col": 70,
+      "facing_deg": 180,
+      "fov_deg": 120,
+      "max_range": 30
     }
   ],
+  "use_fallback": true,
+  "fallback": true,
   "output_dir": "outputs"
 }

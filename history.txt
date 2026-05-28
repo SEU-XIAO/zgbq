@@ -120,4 +120,4 @@ class TrainingSceneConfig:
     goal_max_distance: int = 22
     max_sample_attempts: int = 100
 
-目前打转还是比较多，讲step_panalty=-0.1试一下
+目前打转还是比较多，讲step_panalty=-0.1试一下，直接在服务器上调的，checkpoints/v4

@@ -42,6 +42,9 @@ OSCILLATION_WINDOW = 10
 OSCILLATION_UNIQUE_LIMIT = 3
 OSCILLATION_MIN_STEPS = 8
 
+# 8个方向动作的反向映射：上↔下，左↔右，左上↔右下，右上↔左下
+REVERSE_MAP = {0: 1, 1: 0, 2: 3, 3: 2, 4: 7, 5: 6, 6: 5, 7: 4}
+
 
 def parse_coord(text: str) -> Coord:
     row, col = text.split(",")
@@ -108,10 +111,22 @@ def load_policy(path: str | Path, device: torch.device) -> TacticalD3QN:
 
 
 @torch.no_grad()
-def greedy_action(model: TacticalD3QN, obs: np.ndarray, mask: np.ndarray, device: torch.device) -> int:
+def greedy_action(
+    model: TacticalD3QN,
+    obs: np.ndarray,
+    mask: np.ndarray,
+    device: torch.device,
+    prev_action: int | None = None,
+    return_penalty: float = 2.0,
+) -> int:
     x = torch.from_numpy(obs).unsqueeze(0).float().to(device)
     m = torch.from_numpy(mask).unsqueeze(0).float().to(device)
-    q = masked_q_values(model(x), m)
+    q = model(x)
+    # 对上一步的反方向施加惩罚，抑制振荡
+    if prev_action is not None:
+        reverse_action = REVERSE_MAP[prev_action]
+        q[0, reverse_action] -= return_penalty
+    q = masked_q_values(q, m)
     return int(torch.argmax(q, dim=1).item())
 
 
@@ -170,11 +185,13 @@ def run_segment(
     env = TacticalBattlefieldEnv(grid, env_cfg)
     obs = env.reset(start=start, goal=waypoint, enemies=enemies, waypoints=[waypoint], threat_scale=1.0)
     trace = [start]
+    prev_action = None
 
     for _ in range(max_steps):
         if manhattan(env.pos, waypoint) <= tolerance:
             return env.pos, trace, True, "reached"
-        action = greedy_action(model, obs, env.action_mask(), device)
+        action = greedy_action(model, obs, env.action_mask(), device, prev_action)
+        prev_action = action
         step = env.step(action)
         obs = step.observation
         trace.append(env.pos)
@@ -292,6 +309,7 @@ def plan_and_execute(
     goal: Coord,
     enemies: Sequence[EnemySpec],
     model_path: str | Path | None = None,
+    use_fallback: bool = True,
 ) -> Dict[str, object]:
     grid = load_txt_map(map_path)
     validate_endpoint(grid, start, "start")
@@ -413,6 +431,9 @@ def plan_and_execute(
         failed_reason = reason
 
         if trap_replans >= MAX_REPLANS_PER_TRAP:
+            if not use_fallback:
+                failed_reason = f"fallback_disabled_after_{reason}"
+                break
             if len(fallback_events) >= MAX_FALLBACK_EVENTS:
                 failed_reason = "max_fallback_events_reached"
                 break
@@ -527,6 +548,7 @@ def plan_and_execute(
         "geometric_fallback_count": len(fallback_events),
         "geometric_fallback_steps": fallback_steps,
         "geometric_fallback_events": fallback_events,
+        "use_fallback": bool(use_fallback),
         "local_executor_success": bool(success and not fallback_events),
         "failed_segments": failed_segments,
         "failed_waypoint": coord_to_list(failed_waypoint) if failed_waypoint is not None else None,
@@ -544,6 +566,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--goal", required=True, help="row,col")
     parser.add_argument("--enemy", action="append", default=[], help="row,col,facing_deg,fov_deg,range")
     parser.add_argument("--output-dir", default=None, help="optional directory to write result json")
+    parser.add_argument("--no-fallback", action="store_true", help="disable geometric fallback; use model/replanning only")
     return parser.parse_args()
 
 
@@ -573,6 +596,7 @@ def main() -> None:
             goal=goal,
             enemies=[parse_enemy(enemy) for enemy in args.enemy],
             model_path=args.model,
+            use_fallback=not args.no_fallback,
         )
         write_result_if_requested(result, args.output_dir, start, goal)
     except Exception as exc:

@@ -74,6 +74,22 @@ def _coord_xy_to_row_col(value: Any, name: str) -> list[int]:
     return [int(round(y)), int(round(x))]
 
 
+def _as_bool(value: Any, default: bool) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "y", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "n", "off"}:
+            return False
+    raise ValueError(f"invalid boolean value: {value}")
+
+
 def _coord_xy(value: Any, name: str) -> list[int]:
     if not isinstance(value, (list, tuple)) or len(value) < 2:
         raise ValueError(f"{name} must be [x, y]")
@@ -173,6 +189,7 @@ def adapt_maneuver_path_request(
     model_path = payload.get("model_path", payload.get("modelPath", payload.get("model")))
     if model_path:
         request["model_path"] = str(model_path)
+    request["use_fallback"] = _as_bool(payload.get("use_fallback", payload.get("fallback")), True)
     return request
 
 

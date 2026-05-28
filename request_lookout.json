@@ -1,0 +1,18 @@
+{
+  "task": "site_selection",
+  "mode": "lookout",
+  "map": "MyPath_Data417.txt",
+  "region_a": {
+    "x": 10,
+    "y": 10,
+    "w": 80,
+    "h": 80
+  },
+  "region_b": {
+    "x": 180,
+    "y": 180,
+    "w": 80,
+    "h": 80
+  },
+  "top_k": 5
+}

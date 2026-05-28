@@ -249,11 +249,12 @@ class TacticalBattlefieldEnv:
     def build_observation(self) -> np.ndarray:
         size = self.cfg.window_size
         half = self.window_radius
-        ch_free = np.zeros((size, size), dtype=np.float32)
-        ch_block = np.ones((size, size), dtype=np.float32)
-        ch_threat = self.current_threat_local.copy()
-        ch_wp = np.zeros((size, size), dtype=np.float32)
-        ch_visit = np.zeros((size, size), dtype=np.float32)
+        
+        ch_free = np.zeros((size, size), dtype=np.float32) # 可通行层
+        ch_block = np.ones((size, size), dtype=np.float32) # 障碍层
+        ch_threat = self.current_threat_local.copy() # 敌人威胁层
+        ch_wp = np.zeros((size, size), dtype=np.float32) # 当前路标点
+        ch_visit = np.zeros((size, size), dtype=np.float32) # 走过的点
 
         for wr in range(size):
             for wc in range(size):

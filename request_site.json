@@ -1,0 +1,23 @@
+{
+  "task": "site_selection",
+  "mode": "position",
+  "map": "MyPath_Data417.txt",
+  "search_region": {
+    "x": 10,
+    "y": 10,
+    "w": 120,
+    "h": 120
+  },
+  "targets": [
+    {
+      "enemy": [80, 80],
+      "type": "ZM"
+    },
+    {
+      "enemy": [120, 110],
+      "type": "JM"
+    }
+  ],
+  "patch_size": 5,
+  "top_k": 5
+}

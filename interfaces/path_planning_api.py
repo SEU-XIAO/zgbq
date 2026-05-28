@@ -22,6 +22,22 @@ def _as_coord(value: Any, name: str) -> Coord:
     return int(parts[0]), int(parts[1])
 
 
+def _as_bool(value: Any, default: bool) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "y", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "n", "off"}:
+            return False
+    raise ValueError(f"invalid boolean value: {value}")
+
+
 def _as_enemy(value: Any):
     from battlefield_rl.env import EnemySpec
 
@@ -58,6 +74,7 @@ def handle_path_planning(payload: dict[str, Any]) -> dict[str, Any]:
     enemies = [_as_enemy(item) for item in payload.get("enemies", [])]
 
     model_path = payload.get("model_path", payload.get("model"))
+    use_fallback = _as_bool(payload.get("use_fallback", payload.get("fallback")), True)
 
     result = plan_and_execute(
         map_path=map_path,
@@ -65,6 +82,7 @@ def handle_path_planning(payload: dict[str, Any]) -> dict[str, Any]:
         goal=goal,
         enemies=enemies,
         model_path=str(model_path) if model_path else None,
+        use_fallback=use_fallback,
     )
     output_dir = payload.get("output_dir")
     if output_dir:

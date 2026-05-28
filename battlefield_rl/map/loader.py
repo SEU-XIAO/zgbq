@@ -27,6 +27,7 @@ class BattlefieldMap:
         return int(self.types[row, col]) in (1, 2)
 
     def is_passable(self, from_rc: Tuple[int, int], to_rc: Tuple[int, int], max_height_diff: int = 0) -> bool:
+        # 这里保留了高度差的接口，但是暂时没有引入，后续可以扩展
         tr, tc = to_rc
         if not self.in_bounds(tr, tc):
             return False

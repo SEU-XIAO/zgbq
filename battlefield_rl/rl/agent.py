@@ -23,16 +23,23 @@ class D3QNAgent:
     def __init__(self, cfg: AgentConfig, device: str = "cpu"):
         self.cfg = cfg
         self.device = torch.device(device)
+        # 创建两个一模一样的神经网络。Double DQN
         self.online = TacticalD3QN().to(self.device)
         self.target = TacticalD3QN().to(self.device)
+
+        # 让 target 网络刚开始时复制一份 online 网络一模一样的随机初始参数
         self.target.load_state_dict(self.online.state_dict())
+        # 把 target 网络设置成“测试模式”
         self.target.eval()
 
+        # 创建 Adam 优化器，用来帮 online 网络更新卷积核和全连接层的数字
         self.optim = torch.optim.Adam(self.online.parameters(), lr=cfg.lr)
         self.memory = PrioritizedReplayBuffer(cfg.memory_size, alpha=cfg.per_alpha)
 
         self.global_step = 0
 
+
+    # 两个超参数线性插值
     def epsilon(self) -> float:
         t = min(1.0, self.global_step / max(1, self.cfg.epsilon_decay_steps))
         return self.cfg.epsilon_start + t * (self.cfg.epsilon_end - self.cfg.epsilon_start)
@@ -43,7 +50,7 @@ class D3QNAgent:
 
     @torch.no_grad()
     def act(self, obs: np.ndarray, mask: np.ndarray, epsilon_override: float | None = None) -> int:
-        self.online.eval()
+        self.online.eval() # 开启评测模式
         x = torch.from_numpy(obs).unsqueeze(0).float().to(self.device)
         m = torch.from_numpy(mask).unsqueeze(0).float().to(self.device)
         q = self.online(x)

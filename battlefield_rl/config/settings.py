@@ -32,6 +32,8 @@ class PlannerConfig:
 
     waypoint_interval: int = 22    # 航路点间距（格），全局路径每隔 N 格插入一个航路点
     allow_diagonal: bool = True    # 是否允许对角线移动（8 连通 vs 4 连通）
+    threat_weight: float = 1.0     # 威胁权重，A*/JPS 搜索时敌人威胁对路径代价的影响系数
+    threat_decay: float = 0.5      # 威胁衰减系数，距离敌人越远威胁按此系数线性衰减
 
 
 @dataclass(frozen=True)

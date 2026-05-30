@@ -23,6 +23,14 @@ from battlefield_rl.config import (
     TrainingSceneConfig,
 )
 from battlefield_rl.map import load_txt_map
+from interfaces.config import DEFAULT_MAP_PATH
+from scripts.config import (
+    DEFAULT_DEVICE,
+    DEFAULT_EPISODES,
+    DEFAULT_SAVE_DIR,
+    DEFAULT_SAVE_EVERY,
+    DEFAULT_SEED,
+)
 from battlefield_rl.train import HierarchicalTrainer
 
 
@@ -50,16 +58,16 @@ def resolve_device(device_arg: str) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train 2D local tactical executor on 35x35 mixed scenes")
-    parser.add_argument("--map", type=str, required=True)
-    parser.add_argument("--start", type=str, default="20,20", help="row,col, used only when scene sampling is disabled")
-    parser.add_argument("--goal", type=str, default="200,200", help="row,col, used only when scene sampling is disabled")
-    parser.add_argument("--episodes", type=int, default=500)
-    parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--device", type=str, default="auto", choices=["auto", "cpu", "cuda"])
-    parser.add_argument("--disable-scene-sampler", action="store_true")
-    parser.add_argument("--save-dir", type=str, default="checkpoints")
-    parser.add_argument("--save-every", type=int, default=100)
-    parser.add_argument("--resume", type=str, default="")
+    parser.add_argument("--map", type=str, default=DEFAULT_MAP_PATH, help="地形图文件路径")
+    parser.add_argument("--start", type=str, default="20,20", help="起始坐标 row,col（仅禁用场景采样时生效）")
+    parser.add_argument("--goal", type=str, default="200,200", help="目标坐标 row,col（仅禁用场景采样时生效）")
+    parser.add_argument("--episodes", type=int, default=DEFAULT_EPISODES, help="训练总 episode 数")
+    parser.add_argument("--seed", type=int, default=DEFAULT_SEED, help="随机种子")
+    parser.add_argument("--device", type=str, default=DEFAULT_DEVICE, choices=["auto", "cpu", "cuda"], help="训练设备")
+    parser.add_argument("--disable-scene-sampler", action="store_true", help="禁用局部场景采样，使用真实地图")
+    parser.add_argument("--save-dir", type=str, default=DEFAULT_SAVE_DIR, help="模型 checkpoint 输出目录")
+    parser.add_argument("--save-every", type=int, default=DEFAULT_SAVE_EVERY, help="每隔 N 个 episode 保存一次 checkpoint")
+    parser.add_argument("--resume", type=str, default="", help="从指定 checkpoint 恢复训练")
     args = parser.parse_args()
 
     set_seed(args.seed)

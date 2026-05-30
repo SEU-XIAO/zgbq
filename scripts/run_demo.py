@@ -19,6 +19,7 @@ from battlefield_rl.config import (
 )
 from battlefield_rl.map import load_txt_map
 from battlefield_rl.planner import plan_global_path
+from interfaces.config import DEFAULT_MAP_PATH
 from battlefield_rl.train import HierarchicalTrainer
 
 
@@ -29,10 +30,10 @@ def parse_coord(text: str) -> Tuple[int, int]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Quick demo for pure-height LoS tactical planner")
-    parser.add_argument("--map", type=str, required=True)
-    parser.add_argument("--start", type=str, required=True, help="row,col")
-    parser.add_argument("--goal", type=str, required=True, help="row,col")
-    parser.add_argument("--episodes", type=int, default=3)
+    parser.add_argument("--map", type=str, default=DEFAULT_MAP_PATH, help="地形图文件路径")
+    parser.add_argument("--start", type=str, required=True, help="起始坐标 row,col")
+    parser.add_argument("--goal", type=str, required=True, help="目标坐标 row,col")
+    parser.add_argument("--episodes", type=int, default=3, help="运行 episode 数")
     args = parser.parse_args()
 
     grid = load_txt_map(args.map)

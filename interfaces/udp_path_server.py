@@ -7,18 +7,21 @@ import struct
 from dataclasses import dataclass
 from typing import Any
 
+from .config import (
+    DEFAULT_BUFFER_SIZE,
+    DEFAULT_ENEMY_RANGE,
+    DEFAULT_FOV_DEG,
+    DEFAULT_HOST,
+    DEFAULT_MAP_PATH,
+    DEFAULT_PORT,
+    ENDIAN,
+    HEADER_SIZE,
+    MSG_ID_SIZE,
+    MSG_TYPE_PATH_PLANNING,
+    MSG_TYPE_SITE_SELECTION,
+)
 from .path_planning_api import handle_path_planning
 from .site_selection_api import handle_site_selection
-
-
-MSG_TYPE_PATH_PLANNING = 0x3311
-MSG_TYPE_SITE_SELECTION = 0x3311
-MSG_ID_SIZE = 20
-HEADER_SIZE = 2 + MSG_ID_SIZE
-DEFAULT_MAP_PATH = "MyPath_Data417.txt"
-DEFAULT_FOV_DEG = 90.0
-DEFAULT_ENEMY_RANGE = 20
-DEFAULT_BUFFER_SIZE = 65535
 
 
 @dataclass(frozen=True)
@@ -45,7 +48,7 @@ def _encode_msg_id(msg_id: str) -> bytes:
     return raw.ljust(MSG_ID_SIZE, b"\x00")
 
 
-def decode_packet(data: bytes, *, endian: str = "little") -> UdpPacket:
+def decode_packet(data: bytes, *, endian: str = ENDIAN) -> UdpPacket:
     if len(data) < HEADER_SIZE:
         raise ValueError(f"udp packet too short: {len(data)} bytes")
 
@@ -60,7 +63,7 @@ def decode_packet(data: bytes, *, endian: str = "little") -> UdpPacket:
     return UdpPacket(msg_type=msg_type, msg_id=_decode_msg_id(msg_id_raw), payload=payload)
 
 
-def encode_packet(msg_type: int, msg_id: str, payload: dict[str, Any], *, endian: str = "little") -> bytes:
+def encode_packet(msg_type: int, msg_id: str, payload: dict[str, Any], *, endian: str = ENDIAN) -> bytes:
     header = struct.pack(_struct_format(endian), msg_type, _encode_msg_id(msg_id))
     body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     return header + body
@@ -375,10 +378,10 @@ def serve(
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="UDP wrapper for path planning and site selection")
-    parser.add_argument("--host", default="127.0.0.1", help="local address to bind")
-    parser.add_argument("--port", type=int, required=True, help="local UDP port to listen on")
+    parser.add_argument("--host", default=DEFAULT_HOST, help="local address to bind")
+    parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="local UDP port to listen on")
     parser.add_argument("--map", default=DEFAULT_MAP_PATH, help="txt map path")
-    parser.add_argument("--endian", choices=["little", "big"], default="little", help="USHORT byte order")
+    parser.add_argument("--endian", choices=["little", "big"], default=ENDIAN, help="USHORT byte order")
     parser.add_argument("--default-fov-deg", type=float, default=DEFAULT_FOV_DEG)
     parser.add_argument("--default-enemy-range", type=int, default=DEFAULT_ENEMY_RANGE)
     parser.add_argument("--buffer-size", type=int, default=DEFAULT_BUFFER_SIZE)

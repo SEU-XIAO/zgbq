@@ -35,6 +35,7 @@ from battlefield_rl.env import ACTIONS_8, EnemySpec, TacticalBattlefieldEnv
 from battlefield_rl.env.tactical_env import angle_deg, angle_diff, bresenham_line
 from battlefield_rl.map import BattlefieldMap, LocalSceneSampler, load_txt_map
 from battlefield_rl.rl.network import TacticalD3QN, masked_q_values
+from interfaces.config import DEFAULT_MAP_PATH, DEFAULT_MODEL_PATH
 
 Coord = tuple[int, int]
 
@@ -410,8 +411,8 @@ def print_summary(data: dict[str, Any]) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Test conditional recency masking")
-    p.add_argument("--map", default="MyPath_Data417.txt")
-    p.add_argument("--model", default="episode_8000.pt")
+    p.add_argument("--map", default=DEFAULT_MAP_PATH)
+    p.add_argument("--model", default=DEFAULT_MODEL_PATH)
     p.add_argument("--cases", type=int, default=50)
     p.add_argument("--stage", type=int, default=3, choices=[1,2,3])
     p.add_argument("--seed", type=int, default=20260527)

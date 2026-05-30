@@ -39,6 +39,7 @@ from battlefield_rl.map import BattlefieldMap, load_txt_map
 from battlefield_rl.env.tactical_env import angle_deg, angle_diff, bresenham_line
 from battlefield_rl.config import EnvConfig
 from battlefield_rl.planner import plan_global_path
+from interfaces.config import DEFAULT_MAP_PATH
 from scripts.eval_hierarchical_executor import plan_and_execute
 
 Coord = tuple[int, int]
@@ -505,7 +506,7 @@ def print_summary(data: dict[str, Any]) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Compare visibility avoidance on real map")
-    p.add_argument("--map", default="MyPath_Data417.txt")
+    p.add_argument("--map", default=DEFAULT_MAP_PATH)
     p.add_argument("--model", action="append", default=[], help="model path (repeatable)")
     p.add_argument("--cases", type=int, default=50)
     p.add_argument("--seed", type=int, default=20260528)

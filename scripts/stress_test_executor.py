@@ -17,8 +17,8 @@ if str(PROJECT_ROOT) not in sys.path:
 from battlefield_rl.config import EnvConfig, PlannerConfig
 from battlefield_rl.env import EnemySpec
 from battlefield_rl.map import BattlefieldMap, load_txt_map
+from interfaces.config import DEFAULT_ENEMY_RANGE, DEFAULT_FOV_DEG, DEFAULT_MAP_PATH, DEFAULT_MODEL_PATH
 from scripts.eval_hierarchical_executor import (
-    DEFAULT_MODEL_PATH,
     FALLBACK_ESCAPE_STEPS,
     GOAL_TOLERANCE,
     MAX_FALLBACK_EVENTS,
@@ -71,8 +71,8 @@ def random_enemy(rng: random.Random, cells: Sequence[Coord]) -> EnemySpec:
         row=row,
         col=col,
         facing_deg=float(rng.randrange(0, 360, 45)),
-        fov_deg=90.0,
-        max_range=20,
+        fov_deg=DEFAULT_FOV_DEG,
+        max_range=DEFAULT_ENEMY_RANGE,
     )
 
 
@@ -373,7 +373,7 @@ def aggregate(cases: Sequence[Dict[str, object]]) -> Dict[str, object]:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Stress test hierarchical battlefield executor")
-    parser.add_argument("--map", required=True)
+    parser.add_argument("--map", default=DEFAULT_MAP_PATH)
     parser.add_argument("--cases-per-bucket", type=int, default=6)
     parser.add_argument("--seed", type=int, default=20260522)
     parser.add_argument("--output-dir", default="outputs")

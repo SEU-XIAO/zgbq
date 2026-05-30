@@ -39,8 +39,12 @@ from battlefield_rl.config import EnvConfig, TrainingSceneConfig
 from battlefield_rl.env import EnemySpec, TacticalBattlefieldEnv
 from battlefield_rl.map import BattlefieldMap, LocalSceneSampler, load_txt_map
 from battlefield_rl.rl.network import TacticalD3QN, masked_q_values
+from interfaces.config import DEFAULT_MAP_PATH, DEFAULT_MODEL_PATH
 
 Coord = tuple[int, int]
+
+# 8个方向动作的反向映射：上↔下，左↔右，左上↔右下，右上↔左下
+REVERSE_MAP = {0: 1, 1: 0, 2: 3, 3: 2, 4: 7, 5: 6, 6: 5, 7: 4}
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -64,10 +68,22 @@ def load_policy(path: str | Path, device: torch.device) -> TacticalD3QN:
 
 
 @torch.no_grad()
-def greedy_action(model: TacticalD3QN, obs: np.ndarray, mask: np.ndarray, device: torch.device) -> int:
+def greedy_action(
+    model: TacticalD3QN,
+    obs: np.ndarray,
+    mask: np.ndarray,
+    device: torch.device,
+    prev_action: int | None = None,
+    return_penalty: float = 2.0,
+) -> int:
     x = torch.from_numpy(obs).unsqueeze(0).float().to(device)
     m = torch.from_numpy(mask).unsqueeze(0).float().to(device)
-    q = masked_q_values(model(x), m)
+    q = model(x)
+    # 对上一步的反方向施加惩罚，抑制振荡
+    if prev_action is not None:
+        reverse_action = REVERSE_MAP[prev_action]
+        q[0, reverse_action] -= return_penalty
+    q = masked_q_values(q, m)
     return int(torch.argmax(q, dim=1).item())
 
 
@@ -87,9 +103,11 @@ def run_episode_with_trace(
 
     path: list[Coord] = [start]
     reason = "step_limit"
+    prev_action = None
 
     for _ in range(max_steps):
-        action = greedy_action(model, obs, env.action_mask(), device)
+        action = greedy_action(model, obs, env.action_mask(), device, prev_action)
+        prev_action = action
         step = env.step(action)
         obs = step.observation
         path.append(env.pos)
@@ -528,8 +546,8 @@ def run_all(
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Detect oscillation in model local execution paths")
-    p.add_argument("--map", default="MyPath_Data417.txt", help="terrain map txt")
-    p.add_argument("--model", default="episode_8000.pt", help="model checkpoint")
+    p.add_argument("--map", default=DEFAULT_MAP_PATH, help="terrain map txt")
+    p.add_argument("--model", default=DEFAULT_MODEL_PATH, help="model checkpoint")
     p.add_argument("--cases", type=int, default=50, help="number of test scenes")
     p.add_argument("--stage", type=int, default=3, choices=[1,2,3], help="curriculum stage for scene generation")
     p.add_argument("--seed", type=int, default=20260527, help="random seed")

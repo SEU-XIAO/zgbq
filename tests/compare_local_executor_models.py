@@ -21,6 +21,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from battlefield_rl.config import EnvConfig, TrainingSceneConfig
 from battlefield_rl.env import EnemySpec, TacticalBattlefieldEnv
 from battlefield_rl.map import BattlefieldMap, LocalSceneSampler, TrainingScene, load_txt_map
+from interfaces.config import DEFAULT_MAP_PATH
 from scripts.eval_hierarchical_executor import coord_to_list, enemy_to_dict, load_policy, select_device
 
 
@@ -259,7 +260,7 @@ def compare_models(
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Compare local executor ability of model checkpoints")
-    parser.add_argument("--map", default="MyPath_Data417.txt", help="txt map path")
+    parser.add_argument("--map", default=DEFAULT_MAP_PATH, help="txt map path")
     parser.add_argument(
         "--model",
         action="append",

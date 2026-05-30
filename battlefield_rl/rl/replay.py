@@ -52,8 +52,9 @@ class PrioritizedReplayBuffer:
         indices = np.random.choice(size, batch_size, p=probs)
         samples = [self.buffer[i] for i in indices]
 
-        # 重要性采样权重，随训练慢慢从 0.4 变成 1.0
+        # 重要性采样权重，随训练慢慢从 0.4 变成 1.0，用来乘以loss
         weights = (size * probs[indices]) ** (-beta)
+        # 归一化
         weights /= weights.max()
         return indices, samples, weights.astype(np.float32)
 

@@ -220,6 +220,9 @@ class HierarchicalTrainer:
             max_height_diff=self.env_cfg.max_height_diff,
             waypoint_interval=self.planner_cfg.waypoint_interval,
             allow_diagonal=self.planner_cfg.allow_diagonal,
+            enemies=enemies,
+            threat_weight=self.planner_cfg.threat_weight,
+            threat_decay=self.planner_cfg.threat_decay,
         )
         if not plan.path:
             return EpisodeStats(

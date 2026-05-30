@@ -24,7 +24,9 @@ from battlefield_rl.env.tactical_env import angle_deg, angle_diff, bresenham_lin
 from battlefield_rl.map import BattlefieldMap, load_txt_map
 from battlefield_rl.planner import plan_global_path
 from battlefield_rl.rl.network import TacticalD3QN, masked_q_values
+from interfaces.config import DEFAULT_MAP_PATH
 from scripts.eval_hierarchical_executor import (
+    REVERSE_MAP,
     WAYPOINT_INTERVAL,
     WAYPOINT_MAX_CHEBYSHEV,
     WAYPOINT_TOLERANCE,
@@ -246,10 +248,20 @@ def place_enemies_on_classic_path(
 
 
 @torch.no_grad()
-def greedy_action(model: TacticalD3QN, obs: np.ndarray, mask: np.ndarray, device: torch.device) -> int:
+def greedy_action(
+    model: TacticalD3QN,
+    obs: np.ndarray,
+    mask: np.ndarray,
+    device: torch.device,
+    prev_action: int | None = None,
+    return_penalty: float = 2.0,
+) -> int:
     x = torch.from_numpy(obs).unsqueeze(0).float().to(device)
     m = torch.from_numpy(mask).unsqueeze(0).float().to(device)
-    q = masked_q_values(model(x), m)
+    q = model(x)
+    if prev_action is not None:
+        q[0, REVERSE_MAP[prev_action]] -= return_penalty
+    q = masked_q_values(q, m)
     return int(torch.argmax(q, dim=1).item())
 
 
@@ -274,6 +286,7 @@ def run_recency_model(
         planner_cfg=planner_cfg,
         waypoint_interval=WAYPOINT_INTERVAL,
         waypoint_max_chebyshev=WAYPOINT_MAX_CHEBYSHEV,
+        enemies=list(enemies),
     )
     if not plan.path:
         return {"success": False, "reason": "no_global_path", "path": [start], "interventions": 0}
@@ -289,16 +302,20 @@ def run_recency_model(
         env = RecencyMaskedEnv(grid, env_cfg)
         obs = env.reset(start=pos, goal=waypoint, enemies=enemies, waypoints=[waypoint], threat_scale=1.0)
         segment_start = pos
+        segment_path = [segment_start]
         reached = False
+        prev_action: int | None = None
         for _ in range(max_segment_steps):
             if manhattan(env.pos, waypoint) <= (0 if waypoint == goal else WAYPOINT_TOLERANCE):
                 reached = True
                 break
-            action = greedy_action(model, obs, env.action_mask(), device)
+            action = greedy_action(model, obs, env.action_mask(), device, prev_action)
+            prev_action = action
             step = env.step(action)
             obs = step.observation
             pos = env.pos
             full_path.append(pos)
+            segment_path.append(pos)
             if len(full_path) - 1 >= max_total_steps:
                 reason = "max_total_steps"
                 break
@@ -311,10 +328,14 @@ def run_recency_model(
         interventions += env.mask_interventions
         segments.append(
             {
+                "mode": "model",
                 "start": coord_to_list(segment_start),
                 "target": coord_to_list(waypoint),
                 "end": coord_to_list(pos),
+                "path": coords_to_list(segment_path),
+                "steps": len(segment_path) - 1,
                 "reached": reached,
+                "reason": "reached" if reached else (reason or "segment_failed"),
                 "interventions": env.mask_interventions,
             }
         )
@@ -331,6 +352,11 @@ def run_recency_model(
         "path": full_path,
         "interventions": interventions,
         "segments": segments,
+        "executor_segments": segments,
+        "geometric_fallback_events": [],
+        "geometric_fallback_count": 0,
+        "geometric_fallback_steps": 0,
+        "local_executor_success": bool(pos == goal),
         "initial_global_steps": len(plan.path) - 1,
     }
 
@@ -439,6 +465,11 @@ def find_top_cases(args: argparse.Namespace) -> list[dict[str, Any]]:
                 {
                     "interventions": model_run.get("interventions", 0),
                     "initial_global_steps": model_run.get("initial_global_steps", 0),
+                    "executor_segments": model_run.get("executor_segments", model_run.get("segments", [])),
+                    "geometric_fallback_events": model_run.get("geometric_fallback_events", []),
+                    "geometric_fallback_count": model_run.get("geometric_fallback_count", 0),
+                    "geometric_fallback_steps": model_run.get("geometric_fallback_steps", 0),
+                    "local_executor_success": model_run.get("local_executor_success", False),
                 },
             ),
         }
@@ -513,7 +544,7 @@ def draw_report(case: dict[str, Any], grid: BattlefieldMap, output_png: Path) ->
     ax.tick_params(which="minor", bottom=False, left=False)
 
     colors = {"bfs": "#2f80ed", "astar": "#27ae60", "model": "#e74c3c"}
-    labels = {"bfs": "BFS", "astar": "A*", "model": "Model 6000 + recency mask"}
+    labels = {"bfs": "BFS", "astar": "A*", "model": "Model + recency/reverse"}
     for key, route in case["routes"].items():
         path = [(int(p[0]), int(p[1])) for p in route["path"]]
         if not path:
@@ -580,8 +611,8 @@ def draw_report(case: dict[str, Any], grid: BattlefieldMap, output_png: Path) ->
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(description="Visualize model 6000 with recency masking vs BFS/A*")
-    p.add_argument("--map", default="MyPath_Data417.txt")
+    p = argparse.ArgumentParser(description="Visualize model with recency masking and reverse penalty vs BFS/A*")
+    p.add_argument("--map", default=DEFAULT_MAP_PATH)
     p.add_argument("--model", default="episode_6000.pt")
     p.add_argument("--seed", type=int, default=20260528)
     p.add_argument("--search-cases", type=int, default=25)

@@ -17,6 +17,7 @@ for path in (PROJECT_ROOT, TESTS_ROOT):
 
 from battlefield_rl.env import EnemySpec
 from battlefield_rl.map import BattlefieldMap, load_txt_map
+from interfaces.config import DEFAULT_MAP_PATH
 from scripts.eval_hierarchical_executor import coord_to_list, coords_to_list, enemy_to_dict, load_policy, select_device
 from visualize_model_vs_classic import (
     astar_path,
@@ -135,7 +136,7 @@ def draw_case(
     labels = {
         "bfs": "BFS",
         "astar": "A*",
-        "model": "Model 6000 + debounce",
+        "model": "Model 4500 + recency/reverse",
     }
     widths = {"bfs": 2.2, "astar": 2.2, "model": 2.8}
     for key in ("bfs", "astar", "model"):
@@ -226,7 +227,7 @@ def build_routes(args: argparse.Namespace) -> tuple[BattlefieldMap, dict[str, di
         "bfs": summarize_route("BFS", grid, bfs, DEFAULT_ENEMIES, bool(bfs and bfs[-1] == DEFAULT_GOAL)),
         "astar": summarize_route("A*", grid, astar, DEFAULT_ENEMIES, bool(astar and astar[-1] == DEFAULT_GOAL)),
         "model": summarize_route(
-            "Model6000+Debounce",
+            "Model4500+RecencyReverse",
             grid,
             model_run["path"],
             DEFAULT_ENEMIES,
@@ -235,6 +236,11 @@ def build_routes(args: argparse.Namespace) -> tuple[BattlefieldMap, dict[str, di
             {
                 "interventions": int(model_run.get("interventions", 0)),
                 "initial_global_steps": int(model_run.get("initial_global_steps", 0)),
+                "executor_segments": model_run.get("executor_segments", model_run.get("segments", [])),
+                "geometric_fallback_events": model_run.get("geometric_fallback_events", []),
+                "geometric_fallback_count": int(model_run.get("geometric_fallback_count", 0)),
+                "geometric_fallback_steps": int(model_run.get("geometric_fallback_steps", 0)),
+                "local_executor_success": bool(model_run.get("local_executor_success", False)),
             },
         ),
     }
@@ -243,7 +249,7 @@ def build_routes(args: argparse.Namespace) -> tuple[BattlefieldMap, dict[str, di
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Visualize the fixed visibility comparison case cell by cell")
-    parser.add_argument("--map", default="MyPath_Data417.txt")
+    parser.add_argument("--map", default=DEFAULT_MAP_PATH)
     parser.add_argument("--model", default="episode_6000.pt")
     parser.add_argument("--segment-steps", type=int, default=55)
     parser.add_argument("--max-total-steps", type=int, default=260)

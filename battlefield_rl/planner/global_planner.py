@@ -3,11 +3,80 @@
 from dataclasses import dataclass
 import heapq
 import math
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Sequence, Set, Tuple
 
 from battlefield_rl.map import BattlefieldMap
+from battlefield_rl.env import EnemySpec
 
 Coord = Tuple[int, int]
+
+
+def _angle_deg(from_rc: Coord, to_rc: Coord) -> float:
+    dr = to_rc[0] - from_rc[0]
+    dc = to_rc[1] - from_rc[1]
+    rad = math.atan2(-dr, dc)
+    return (math.degrees(rad) + 360.0) % 360.0
+
+
+def _angle_diff(a: float, b: float) -> float:
+    d = abs(a - b) % 360.0
+    return min(d, 360.0 - d)
+
+
+def _bresenham_line(r0: int, c0: int, r1: int, c1: int) -> List[Coord]:
+    points: List[Coord] = []
+    dr = abs(r1 - r0)
+    dc = abs(c1 - c0)
+    sr = 1 if r0 < r1 else -1
+    sc = 1 if c0 < c1 else -1
+    err = dr - dc
+    r, c = r0, c0
+    while True:
+        points.append((r, c))
+        if r == r1 and c == c1:
+            break
+        e2 = 2 * err
+        if e2 > -dc:
+            err -= dc
+            r += sr
+        if e2 < dr:
+            err += dr
+            c += sc
+    return points
+
+
+def _threat_cost(
+    grid: BattlefieldMap,
+    point: Coord,
+    enemies: Sequence[EnemySpec],
+    threat_weight: float,
+    threat_decay: float,
+) -> float:
+    """计算某个格子的威胁代价，考虑距离衰减"""
+    if not enemies:
+        return 0.0
+    max_threat = 0.0
+    for enemy in enemies:
+        src = (enemy.row, enemy.col)
+        d = math.hypot(point[0] - src[0], point[1] - src[1])
+        if d > enemy.max_range:
+            continue
+        if _angle_diff(_angle_deg(src, point), enemy.facing_deg) > enemy.fov_deg * 0.5:
+            continue
+        # 检查视线遮挡
+        line = _bresenham_line(src[0], src[1], point[0], point[1])
+        blocked = False
+        for r, c in line[1:-1]:
+            if grid.is_static_blocked(r, c):
+                blocked = True
+                break
+        if blocked:
+            continue
+        # 在视野内，计算威胁值（距离越近威胁越大）
+        threat = threat_weight * (1.0 - d / max(1.0, float(enemy.max_range)))
+        max_threat = max(max_threat, threat)
+    return max_threat
+
 
 DIRS_8 = [
     (-1, 0),
@@ -49,8 +118,17 @@ def _neighbors(grid: BattlefieldMap, node: Coord, max_height_diff: int, allow_di
             out.append(nxt)
     return out
 
-# 只考虑距离影响的a*
-def astar(grid: BattlefieldMap, start: Coord, goal: Coord, max_height_diff: int, allow_diagonal: bool = True) -> List[Coord]:
+# 考虑距离和威胁影响的a*
+def astar(
+    grid: BattlefieldMap,
+    start: Coord,
+    goal: Coord,
+    max_height_diff: int,
+    allow_diagonal: bool = True,
+    enemies: Optional[Sequence[EnemySpec]] = None,
+    threat_weight: float = 0.0,
+    threat_decay: float = 0.5,
+) -> List[Coord]:
     if start == goal:
         return [start]
 
@@ -66,6 +144,9 @@ def astar(grid: BattlefieldMap, start: Coord, goal: Coord, max_height_diff: int,
 
         for nxt in _neighbors(grid, current, max_height_diff, allow_diagonal):
             step_cost = heuristic(current, nxt)
+            # 加入威胁代价
+            if enemies and threat_weight > 0:
+                step_cost += _threat_cost(grid, nxt, enemies, threat_weight, threat_decay)
             tentative_g = g_score[current] + step_cost
             if tentative_g < g_score.get(nxt, float("inf")):
                 came_from[nxt] = current
@@ -194,7 +275,7 @@ def _pruned_directions(
         add((dr, 0))
         add((0, dc))
         if _blocked(grid, (row - dr, col), max_height_diff):
-            add((-dr, dc)) # 如果当前节点垂直后方 (row - dr, col) 被阻挡了，说明这里有个坎。为了能绕过这个坎，必须把“倒转垂直向，继续水平向” (-dr, dc) 的分叉方向加进来。
+            add((-dr, dc)) # 如果当前节点垂直后方 (row - dr, col) 被阻挡了，说明这里有个坎。为了能绕过这个坎，必须把"倒转垂直向，继续水平向" (-dr, dc) 的分叉方向加进来。
         if _blocked(grid, (row, col - dc), max_height_diff):
             add((dr, -dc))
     elif dr != 0:
@@ -262,8 +343,11 @@ def jps(
     goal: Coord,
     max_height_diff: int,
     allow_diagonal: bool = True,
+    enemies: Optional[Sequence[EnemySpec]] = None,
+    threat_weight: float = 0.0,
+    threat_decay: float = 0.5,
 ) -> List[Coord]:
-    """借用了 A* 算法的框架，在扩展邻居时不是一格一格移动，而是通过裁剪方向后进行“跳跃”探测（_jump），直接寻找下一个关键跳点。"""
+    """借用了 A* 算法的框架，在扩展邻居时不是一格一格移动，而是通过裁剪方向后进行跳跃探测（_jump），直接寻找下一个关键跳点。"""
     if start == goal:
         return [start]
     # 对起点终点进行合法检查
@@ -293,8 +377,11 @@ def jps(
             if jump_point is None or jump_point in closed:
                 continue
 
-            # 当前点的潜在实际代价
-            tentative_g = g_score[current] + heuristic(current, jump_point)
+            # 当前点的潜在实际代价（距离 + 威胁）
+            step_cost = heuristic(current, jump_point)
+            if enemies and threat_weight > 0:
+                step_cost += _threat_cost(grid, jump_point, enemies, threat_weight, threat_decay)
+            tentative_g = g_score[current] + step_cost
             if tentative_g < g_score.get(jump_point, float("inf")):
                 came_from[jump_point] = current
                 g_score[jump_point] = tentative_g
@@ -324,7 +411,7 @@ def compress_jump_points(path: List[Coord]) -> List[Coord]:
     return jumps
 
 
-# 将一条过长、格子过密的完整路径（path），按照指定的距离间隔（interval）抽取出一系列“宏观航路点”。
+# 将一条过长、格子过密的完整路径（path），按照指定的距离间隔（interval）抽取出一系列"宏观航路点"。
 def interpolate_waypoints(
     path: List[Coord],
     interval: int = 22,
@@ -375,12 +462,17 @@ def plan_global_path(
     allow_diagonal: bool = True,
     use_jps: bool = True,
     waypoint_max_chebyshev: Optional[int] = None,
+    enemies: Optional[Sequence[EnemySpec]] = None,
+    threat_weight: float = 0.0,
+    threat_decay: float = 0.5,
 ) -> PlanResult:
     planner = "jps"
-    path = jps(grid, start, goal, max_height_diff=max_height_diff, allow_diagonal=allow_diagonal) if use_jps else []
+    path = jps(grid, start, goal, max_height_diff=max_height_diff, allow_diagonal=allow_diagonal,
+               enemies=enemies, threat_weight=threat_weight, threat_decay=threat_decay) if use_jps else []
     if not path:
         planner = "astar"
-        path = astar(grid, start, goal, max_height_diff=max_height_diff, allow_diagonal=allow_diagonal)
+        path = astar(grid, start, goal, max_height_diff=max_height_diff, allow_diagonal=allow_diagonal,
+                     enemies=enemies, threat_weight=threat_weight, threat_decay=threat_decay)
     if not path:
         return PlanResult(path=[], jump_points=[], waypoints=[], planner="failed")
     jumps = compress_jump_points(path)

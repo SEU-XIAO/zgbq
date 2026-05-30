@@ -25,7 +25,7 @@ from battlefield_rl.rl.network import TacticalD3QN, masked_q_values
 
 Coord = Tuple[int, int]
 
-DEFAULT_MODEL_PATH = "episode_8000.pt"
+from interfaces.config import DEFAULT_MAP_PATH, DEFAULT_MODEL_PATH
 WAYPOINT_INTERVAL = 18
 WAYPOINT_MAX_CHEBYSHEV = 10
 SEGMENT_STEPS = 45
@@ -145,6 +145,7 @@ def build_plan(
     planner_cfg: PlannerConfig,
     waypoint_interval: int,
     waypoint_max_chebyshev: int | None,
+    enemies: list | None = None,
 ) -> PlanResult:
     return plan_global_path(
         grid,
@@ -155,6 +156,9 @@ def build_plan(
         allow_diagonal=planner_cfg.allow_diagonal,
         use_jps=True,
         waypoint_max_chebyshev=waypoint_max_chebyshev,
+        enemies=enemies,
+        threat_weight=planner_cfg.threat_weight,
+        threat_decay=planner_cfg.threat_decay,
     )
 
 
@@ -218,6 +222,7 @@ def follow_geometric_path(
     env_cfg: EnvConfig,
     planner_cfg: PlannerConfig,
     max_steps: int,
+    enemies: list | None = None,
 ) -> Tuple[Coord, List[Coord], bool, str]:
     plan = build_plan(
         grid=grid,
@@ -227,6 +232,7 @@ def follow_geometric_path(
         planner_cfg=planner_cfg,
         waypoint_interval=WAYPOINT_INTERVAL,
         waypoint_max_chebyshev=None,
+        enemies=enemies,
     )
     if not plan.path:
         return start, [start], False, "fallback_no_path"
@@ -331,6 +337,7 @@ def plan_and_execute(
         planner_cfg=planner_cfg,
         waypoint_interval=WAYPOINT_INTERVAL,
         waypoint_max_chebyshev=WAYPOINT_MAX_CHEBYSHEV,
+        enemies=list(enemies),
     )
     if not initial_plan.path:
         return {
@@ -376,6 +383,7 @@ def plan_and_execute(
                 planner_cfg=planner_cfg,
                 waypoint_interval=WAYPOINT_INTERVAL,
                 waypoint_max_chebyshev=WAYPOINT_MAX_CHEBYSHEV,
+                enemies=list(enemies),
             )
             plans_used.append(refresh.planner)
             visibility_refreshes += 1
@@ -409,6 +417,7 @@ def plan_and_execute(
                 "start": coord_to_list(segment_start),
                 "target": coord_to_list(waypoint),
                 "end": coord_to_list(pos),
+                "path": coords_to_list(trace),
                 "steps": len(trace) - 1,
                 "reached": bool(reached),
                 "reason": reason,
@@ -451,6 +460,7 @@ def plan_and_execute(
                 env_cfg=env_cfg,
                 planner_cfg=planner_cfg,
                 max_steps=chunk_steps,
+                enemies=list(enemies),
             )
             chunk_used = len(trace) - 1
             fallback_steps += chunk_used
@@ -459,6 +469,7 @@ def plan_and_execute(
                 {
                     "start": coord_to_list(fallback_start),
                     "end": coord_to_list(pos),
+                    "path": coords_to_list(trace),
                     "steps": chunk_used,
                     "success": bool(fallback_success),
                     "reason": fallback_reason,
@@ -477,6 +488,7 @@ def plan_and_execute(
                 planner_cfg=planner_cfg,
                 waypoint_interval=WAYPOINT_INTERVAL,
                 waypoint_max_chebyshev=WAYPOINT_MAX_CHEBYSHEV,
+                enemies=list(enemies),
             )
             plans_used.append(refresh.planner)
             visibility_refreshes += 1
@@ -503,6 +515,7 @@ def plan_and_execute(
             planner_cfg=planner_cfg,
             waypoint_interval=replan_interval,
             waypoint_max_chebyshev=WAYPOINT_MAX_CHEBYSHEV,
+            enemies=list(enemies),
         )
         plans_used.append(replan.planner)
         if not replan.path:
@@ -560,7 +573,7 @@ def plan_and_execute(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Return battlefield path planning result as JSON")
-    parser.add_argument("--map", required=True, help="txt map path")
+    parser.add_argument("--map", default=DEFAULT_MAP_PATH, help=f"txt map path (default: {DEFAULT_MAP_PATH})")
     parser.add_argument("--model", default=None, help="model checkpoint path; defaults to episode_8000.pt")
     parser.add_argument("--start", required=True, help="row,col")
     parser.add_argument("--goal", required=True, help="row,col")

@@ -29,6 +29,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from battlefield_rl.env import ACTIONS_8, EnemySpec
 from battlefield_rl.map import BattlefieldMap, load_txt_map
+from interfaces.config import DEFAULT_MAP_PATH
 from scripts.eval_hierarchical_executor import plan_and_execute
 
 Coord = tuple[int, int]
@@ -242,7 +243,7 @@ def print_summary(data: dict[str, Any]) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Compare models with full global+local pipeline")
-    p.add_argument("--map", default="MyPath_Data417.txt")
+    p.add_argument("--map", default=DEFAULT_MAP_PATH)
     p.add_argument("--model", action="append", default=[], help="model path (repeatable)")
     p.add_argument("--cases", type=int, default=30)
     p.add_argument("--bucket", choices=sorted(BUCKETS), default="short")

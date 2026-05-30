@@ -22,7 +22,7 @@ DEFAULT_MAP_PATH = "MyPath_Data417.txt"
 
 # ── 模型配置 ──────────────────────────────────────────────
 # 默认使用的 D3QN 模型 checkpoint 文件名（放在项目根目录下）
-DEFAULT_MODEL_PATH = "episode_8000.pt"
+DEFAULT_MODEL_PATH = "v1.pt"
 
 # ── 寻路默认参数 ──────────────────────────────────────────
 DEFAULT_FOV_DEG = 90.0

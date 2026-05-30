@@ -97,6 +97,7 @@ def main() -> None:
         trainer.stage_episode = int(checkpoint.get("stage_episode", trainer.stage_episode))
         start_episode = int(checkpoint.get("episode", 0)) + 1
         best_success = float(checkpoint.get("best_success", best_success))
+        trainer.stage_episode = 0  # 重置阶段内计数，专家引导概率从 start 重新衰减
         print(f"已加载 checkpoint: {args.resume}")
 
     print(f"地图尺寸: {grid.shape[0]} x {grid.shape[1]}")

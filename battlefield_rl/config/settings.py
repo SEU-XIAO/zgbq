@@ -11,11 +11,11 @@ class EnvConfig:
     los_height_margin: float = 0.0  # 视线高差余量，用于通视判断时的容差
 
     # ── 奖励函数 ──────────────────────────────────────────
-    step_penalty: float = -0.1              # 每步基础惩罚，鼓励尽快到达目标
+    step_penalty: float = -0.3              # 每步基础惩罚，鼓励尽快到达目标
     progress_reward_scale: float = 0.3      # 前进奖励系数，与朝目标方向的位移成正比
     exposure_penalty_scale: float = -0.15   # 暴露惩罚系数，被敌人看见时按距离加权扣分
-    visible_event_penalty: float = -0.5     # 进入敌人视野事件的一次性惩罚
-    revisit_penalty_scale: float = -0.05    # 重复访问惩罚系数，抑制原地绕圈
+    visible_event_penalty: float = -0.25     # 进入敌人视野事件的一次性惩罚
+    revisit_penalty_scale: float = -0.5    # 重复访问惩罚系数，抑制原地绕圈
 
     waypoint_reward: float = 1.0   # 到达航路点的奖励
     goal_reward: float = 50.0      # 到达终点的奖励
@@ -23,7 +23,7 @@ class EnvConfig:
 
     # ── 终止条件 ──────────────────────────────────────────
     timeout_steps: int = 50        # 单个片段（segment）最大步数，超过则判定超时
-    no_progress_limit: int = 10    # 连续无前进步数上限，超过则提前终止
+    no_progress_limit: int = 5    # 连续无前进步数上限，超过则提前终止
 
 
 @dataclass(frozen=True)
@@ -141,7 +141,7 @@ class CurriculumConfig:
 
     # ── 启发式动作评分权重 ────────────────────────────────
     heuristic_distance_weight: float = 1.0   # 距离权重（朝目标方向的前进量）
-    heuristic_threat_weight: float = 1.5     # 威胁权重（被敌人发现的风险）
+    heuristic_threat_weight: float = 0.75     # 威胁权重（被敌人发现的风险）
     heuristic_revisit_weight: float = 0.2    # 重复访问权重（回到已访问格子的惩罚）
 
 

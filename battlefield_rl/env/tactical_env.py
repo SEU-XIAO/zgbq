@@ -324,6 +324,8 @@ class TacticalBattlefieldEnv:
                         continue
 
                     val = max(0.0, 1.0 - d / max(1.0, float(enemy.max_range)))
+                    if val < 0.3:
+                        val = 0.0  # 低于阈值的远处微弱威胁直接忽略，避免模型过度保守
                     threat[wr, wc] = 1.0 - (1.0 - threat[wr, wc]) * (1.0 - val)
                     visible[wr, wc] = 1.0
 
